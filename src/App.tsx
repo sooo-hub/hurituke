@@ -5,9 +5,9 @@ import type { ImageSegmenter } from '@mediapipe/tasks-vision'
 const VIDEO_W = 640
 const VIDEO_H = 480
 // 新フレームの反映度合い (小さいほど滑らかだが追従が遅れる)
-const TEMPORAL_SMOOTHING = 0.45
-// マスク値の底上げカーブ (1未満で中間信頼度を持ち上げる)
-const MASK_GAMMA = 0.7
+const TEMPORAL_SMOOTHING = 0.6
+// マスク値の底上げカーブ (1未満で中間〜低信頼度を持ち上げる。指先など細い部位の欠け対策)
+const MASK_GAMMA = 0.5
 
 type Status =
   | 'init'
