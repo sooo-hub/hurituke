@@ -4,6 +4,10 @@ import type { ImageSegmenter } from '@mediapipe/tasks-vision'
 
 const VIDEO_W = 640
 const VIDEO_H = 480
+// 新フレームの反映度合い (小さいほど滑らかだが追従が遅れる)
+const TEMPORAL_SMOOTHING = 0.45
+// マスク値の底上げカーブ (1未満で中間信頼度を持ち上げる)
+const MASK_GAMMA = 0.7
 
 type Status =
   | 'init'
@@ -28,6 +32,8 @@ export default function App() {
   const segmenterRef = useRef<ImageSegmenter | null>(null)
   const bgImageRef = useRef<HTMLImageElement | null>(null)
   const rafRef = useRef<number>(0)
+  // フレーム間のマスク値スムージング用 (ちらつき対策)
+  const smoothedMaskRef = useRef<Float32Array | null>(null)
 
   const [status, setStatus] = useState<Status>('init')
   const [fps, setFps] = useState(0)
@@ -124,11 +130,21 @@ export default function App() {
             const pixels = imageData.data
             // Float32Array: 人物=1.0, 背景=0.0
             const maskData = personMask.getAsFloat32Array()
+            const pixelCount = maskData.length
+
+            // 前フレームの値とブレンドしてちらつきを抑える
+            let smoothed = smoothedMaskRef.current
+            if (!smoothed || smoothed.length !== pixelCount) {
+              smoothed = new Float32Array(maskData)
+              smoothedMaskRef.current = smoothed
+            }
 
             // マスク値をアルファチャンネルに適用 (滑らかな輪郭)
-            const pixelCount = maskData.length
             for (let i = 0; i < pixelCount; i++) {
-              pixels[i * 4 + 3] = Math.round(maskData[i] * 255)
+              const value = smoothed[i] * (1 - TEMPORAL_SMOOTHING) + maskData[i] * TEMPORAL_SMOOTHING
+              smoothed[i] = value
+              // 中間信頼度を持ち上げ、腕など輪郭が薄くなりがちな部分の欠けを軽減
+              pixels[i * 4 + 3] = Math.round(Math.pow(value, MASK_GAMMA) * 255)
             }
             bctx.putImageData(imageData, 0, 0)
 
