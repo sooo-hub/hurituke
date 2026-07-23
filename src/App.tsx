@@ -112,9 +112,10 @@ export default function App() {
 
           // セグメンテーション実行
           const result = segmenter.segmentForVideo(video, timestamp)
-          // confidenceMasks[1] = 人物の信頼度 (0.0〜1.0)
-          // ※ モデルによっては index 0 が人物の場合もある
-          const personMask = result.confidenceMasks?.[1]
+          // このモデル (selfie_segmenter float16/1) は confidenceMasks を1枚だけ返し、
+          // index 0 が人物の信頼度 (0.0〜1.0)
+          const masks = result.confidenceMasks
+          const personMask = masks && masks[masks.length - 1]
 
           if (personMask) {
             // 映像フレームをバッファに描画

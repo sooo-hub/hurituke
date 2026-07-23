@@ -5,7 +5,7 @@ const WASM_URL =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
 
 // MediaPipe 公式ホスト上のselfieセグメンターモデル
-// カテゴリ: 0=背景, 1=人物
+// このモデルは confidenceMasks を1枚だけ返す (index 0 = 人物の信頼度)
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite'
 
