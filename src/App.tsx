@@ -34,10 +34,16 @@ export default function App() {
   const rafRef = useRef<number>(0)
   // フレーム間のマスク値スムージング用 (ちらつき対策)
   const smoothedMaskRef = useRef<Float32Array | null>(null)
+  // 録画用 (オフライン抽出の精度検証のため、加工前の生カメラ映像を保存する)
+  const streamRef = useRef<MediaStream | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
 
   const [status, setStatus] = useState<Status>('init')
   const [fps, setFps] = useState(0)
   const [error, setError] = useState<string>('')
+  const [recording, setRecording] = useState(false)
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -54,6 +60,7 @@ export default function App() {
           stream.getTracks().forEach((t) => t.stop())
           return
         }
+        streamRef.current = stream
 
         const video = videoRef.current!
         video.srcObject = stream
@@ -194,6 +201,43 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (recordedUrl) URL.revokeObjectURL(recordedUrl)
+    }
+  }, [recordedUrl])
+
+  function startRecording() {
+    const stream = streamRef.current
+    if (!stream) return
+
+    if (recordedUrl) {
+      URL.revokeObjectURL(recordedUrl)
+      setRecordedUrl(null)
+    }
+    recordedChunksRef.current = []
+
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm'
+    const recorder = new MediaRecorder(stream, { mimeType })
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data)
+    }
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: mimeType })
+      setRecordedUrl(URL.createObjectURL(blob))
+      setRecording(false)
+    }
+    recorder.start()
+    mediaRecorderRef.current = recorder
+    setRecording(true)
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop()
+  }
+
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>Dance Composite — Prototype</h1>
@@ -212,6 +256,25 @@ export default function App() {
       </div>
 
       {error && <p style={styles.error}>エラー: {error}</p>}
+
+      {status === 'running' && (
+        <div style={styles.recordBar}>
+          {!recording ? (
+            <button style={styles.recordButton} onClick={startRecording}>
+              ● 録画開始
+            </button>
+          ) : (
+            <button style={styles.stopButton} onClick={stopRecording}>
+              ■ 録画停止
+            </button>
+          )}
+          {recordedUrl && (
+            <a style={styles.downloadLink} href={recordedUrl} download="recording.webm">
+              録画をダウンロード (未加工の生映像)
+            </a>
+          )}
+        </div>
+      )}
 
       {/* 合成結果キャンバス */}
       <canvas
@@ -285,6 +348,33 @@ const styles = {
     borderRadius: '4px',
     maxWidth: '640px',
     wordBreak: 'break-word' as const,
+  },
+  recordBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  recordButton: {
+    padding: '6px 14px',
+    borderRadius: '4px',
+    border: '1px solid #f44336',
+    background: 'transparent',
+    color: '#f44336',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+  },
+  stopButton: {
+    padding: '6px 14px',
+    borderRadius: '4px',
+    border: '1px solid #666',
+    background: '#f44336',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+  },
+  downloadLink: {
+    fontSize: '0.8rem',
+    color: '#4caf50',
   },
   canvas: {
     border: '1px solid #333',
